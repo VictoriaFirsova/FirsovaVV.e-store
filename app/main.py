@@ -1,12 +1,18 @@
+import uvicorn
 from typing import List
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
-from . import crud, models, schemas
-from .database import SessionLocal, engine
+
+from app.crud import update_order_status
+from app.schemas import OrderStatusUpdate
+
+'''from . import crud, models, schemas'''
+from app import crud, models, schemas
+from app.database import SessionLocal, engine
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+app = FastAPI(debug=True)
 
 
 def get_db():
@@ -24,60 +30,54 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
 
 
 # Эндпоинт для получения списка товаров
-@app.get("/products", response_model= List[schemas.Product])
-def get_product_list(skip: int = 0, db: Session = Depends(get_db)):
-    products = crud.get_products(db, skip=skip)
-    return products
+@app.get("/products", response_model=List[schemas.Product])
+def get_product_list(db: Session = Depends(get_db)):
+    return crud.get_products(db)
 
 
 # Эндпоинт для получения информации о товаре по id
 @app.get("/products/{id}", response_model=schemas.Product)
 def find_product(id: int, db: Session = Depends(get_db)):
-    product = crud.get_product_by_id(db=db, product_id=id)
-
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return product
+    return crud.get_product_by_id(db=db, product_id=id)
 
 
 # Эндпоинт для обновления информации о товаре (PUT /products/{id})
 @app.put("/products/{id}", response_model=schemas.Product)
-def update_product(id: int, product_update: schemas.ProductBase, db: Session = Depends(get_db)):
-    product = db.query(models.Product).filter(models.Product.id == id).first()
-
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    product.name = product_update.name
-    product.description = product_update.description
-    product.price = product_update.price
-    product.quantity = product_update.quantity
-
-    db.commit()
-    db.refresh(product)
-
-    return product
+def update_product(id: int, product: schemas.ProductUpdate, db: Session = Depends(get_db)):
+    return crud.update_product(db=db, product=product, product_id=id)
 
 
 # Эндпоинт для удаления товара (DELETE /products/{id})
 @app.delete("/products/{id}", response_model=schemas.Product)
 def delete_product(id: int, db: Session = Depends(get_db)):
-    product = db.query(models.Product).filter(models.Product.id == id).first()
-
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    db.delete(product)
-    db.commit()
-
-    return product
+    return crud.delete_product(db=db, product_id=id)
 
 
 # Эндпоинт для создания заказа
 @app.post("/orders", response_model=schemas.Order)
 def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
-    db_order = models.Order()
-    db.add(db_order)
-    db.commit()
-    db.refresh(db_order)
-    return db_order
+    return crud.create_order(db=db, order=order)
+
+
+
+# Эндпоинт для получения списка заказов (GET /orders).
+@app.get("/orders", response_model=List[schemas.Order])
+def get_order_list(db: Session = Depends(get_db)):
+    return crud.get_orders(db)
+
+
+# Эндпоинт для получения информации о заказе по id (GET /orders/{id}).
+@app.get("/orders/{id}", response_model=schemas.Order)
+def read_order(id: int, db: Session = Depends(get_db)):
+    return crud.get_order_by_id(db=db, order_id=id)
+
+
+# Эндпоинт для обновления статуса заказа (PATCH /orders/{id}/status).
+@app.patch("/orders/{order_id}/status")
+def change_order_status(order_id: int, status_update: OrderStatusUpdate, db: Session = Depends(get_db)):
+    return update_order_status(db, order_id, status_update.new_status)
+
+
+if __name__ == "__main__":
+    # Запуск приложения через Uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8001, reload=False)

@@ -2,6 +2,8 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 
+from app.models import OrderStatus
+
 
 class ProductBase(BaseModel):
     name: str
@@ -18,25 +20,24 @@ class Product(ProductBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
-class ProductList(ProductBase):
-    items: list[Product]
+class ProductUpdate(ProductBase):
+    pass
 
 
-# Схема для элемента заказа
 class OrderItem(BaseModel):
+    id: int
+    order_id: int
     product_id: int
     quantity: int
+    product: ProductBase
+
+    class Config:
+        from_attributes = True
 
 
-# Схема для создания заказа (POST /orders)
-class OrderCreate(BaseModel):
-    items: List[OrderItem]
-
-
-# Схема для отображения заказа
 class Order(BaseModel):
     id: int
     created_at: datetime
@@ -44,4 +45,26 @@ class Order(BaseModel):
     items: List[OrderItem]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+
+class OrderItemCreate(BaseModel):
+    product_id: int
+    quantity: int
+
+
+class OrderCreate(BaseModel):
+    items: List[OrderItemCreate]
+
+
+class OrderStatusUpdate(BaseModel):
+    new_status: OrderStatus
+
+
+class OrderItem(OrderItem):
+    product: ProductBase
+
+
+class Order(Order):
+    items: List[OrderItem]
+
