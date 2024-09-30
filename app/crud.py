@@ -27,7 +27,11 @@ def get_product_by_id(db: Session, product_id: int):
 
 def update_product(db: Session, product: schemas.ProductUpdate, product_id: int):
     db_product = db.query(models.Product).filter(models.Product.id == product_id).first()
+
     if db_product:
+        if "quantity" in product.dict() and product.quantity < 0:
+            raise HTTPException(status_code=400, detail="Item quantity cannot be negative")
+
         for key, value in product.dict().items():
             setattr(db_product, key, value)
         db.commit()
@@ -57,9 +61,12 @@ def create_order(db: Session, order: schemas.OrderCreate):
             raise HTTPException(status_code=404, detail=f"Product with id {item.product_id} not found")
 
         if product.quantity < item.quantity:
-
             raise HTTPException(status_code=400,
-                                detail=f"Not enough stock for product {product.id}. Available: {product.quantity}, Requested: {item.quantity}")
+                                detail=f"Not enough stock for product "
+                                       f"{product.id}. Available: {product.quantity}, Requested: {item.quantity}")
+        if product.quantity < 0:
+            raise ValueError("Item quantity cannot be negative")
+
         db.add(new_order)
         db.commit()
         db.refresh(new_order)
