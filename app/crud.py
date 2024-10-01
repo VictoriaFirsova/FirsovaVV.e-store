@@ -2,12 +2,16 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from . import models, schemas
 from sqlalchemy.orm import joinedload
-
 from .models import OrderStatus
 
 
 def create_product(db: Session, product: schemas.ProductCreate):
     db_product = models.Product(**product.dict())
+    if "price" in product.dict() and product.price < 0:
+        raise HTTPException(status_code=400, detail="Item price cannot be negative")
+    if "quantity" in product.dict() and product.quantity < 0:
+        raise HTTPException(status_code=400, detail="Item quantity cannot be negative")
+
     db.add(db_product)
     db.commit()
     db.refresh(db_product)
@@ -31,6 +35,8 @@ def update_product(db: Session, product: schemas.ProductUpdate, product_id: int)
     if db_product:
         if "quantity" in product.dict() and product.quantity < 0:
             raise HTTPException(status_code=400, detail="Item quantity cannot be negative")
+        if "price" in product.dict() and product.price < 0:
+            raise HTTPException(status_code=400, detail="Item price cannot be negative")
 
         for key, value in product.dict().items():
             setattr(db_product, key, value)
@@ -64,8 +70,8 @@ def create_order(db: Session, order: schemas.OrderCreate):
             raise HTTPException(status_code=400,
                                 detail=f"Not enough stock for product "
                                        f"{product.id}. Available: {product.quantity}, Requested: {item.quantity}")
-        if product.quantity < 0:
-            raise ValueError("Item quantity cannot be negative")
+        if item.quantity < 0:
+            raise HTTPException(status_code=400, detail="Item quantity cannot be negative")
 
         db.add(new_order)
         db.commit()
